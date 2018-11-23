@@ -56,6 +56,8 @@ bool _verify_wait_certificate(
     const std::string& poetPublicKey
     )
 {
+    //PyLog(POET_LOG_INFO, "Verify SGX Wait Certificate");
+
     poet_err_t ret =
         Poet_VerifyWaitCertificate(
             serializedWaitCertificate.c_str(),
@@ -94,7 +96,6 @@ WaitCertificate::WaitCertificate(
             signatureBuffer.data(),
             signatureBuffer.length
         );
-    ThrowPoetError(ret);
 
     this->serialized = std::string(serializedBuffer.data());
     this->signature = std::string(signatureBuffer.data());
@@ -125,8 +126,9 @@ poet_err_t WaitCertificate::_InitializeWaitCertificate(
             duration,
             durationLen
             );
-    ThrowPoetError(ret);
         
+    ThrowPoetError(ret);
+    
 } // WaitCertificate::_InitializeWaitCertificate
 
 WaitCertificate* WaitCertificate::_FinalizeWaitCertificate(
