@@ -42,3 +42,4 @@
 /src/ias_proxy/bin/
 
 *.batch
+*.pdf
