@@ -23,7 +23,6 @@ extern crate hyper;
 extern crate ias_client;
 extern crate lazy_static;
 extern crate sawtooth_sdk;
-extern crate validator_registry_tp;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
@@ -62,6 +61,7 @@ mod registration;
 pub mod service;
 pub mod settings_view;
 mod validator_registry_view;
+mod protos;
 
 /*
  *

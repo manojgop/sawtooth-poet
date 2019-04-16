@@ -35,8 +35,8 @@ pub struct IasClient {
     timeout: Duration,
 }
 
-const SIGRL_LINK: &str = "/attestation/sgx/v2/sigrl";
-const AVR_LINK: &str = "/attestation/sgx/v2/report";
+const SIGRL_LINK: &str = "/attestation/sgx/v3/sigrl";
+const AVR_LINK: &str = "/attestation/sgx/v3/report";
 const EMPTY_STR: &str = "";
 // Note: Structure can be used for serialization and deserialization, but it won't skip null values
 const ISV_ENCLAVE_QUOTE: &str = "isvEnclaveQuote";

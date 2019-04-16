@@ -39,8 +39,9 @@ use std::path::PathBuf;
 use std::ptr;
 use std::str;
 use std::string::String;
-use validator_registry_tp::validator_registry_signup_info::{
-    SignupInfoProofData, ValidatorRegistrySignupInfo,
+use protos::validator_registry::{
+    SignUpInfo,
+    SignUpInfoProof, 
 };
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -156,7 +157,7 @@ impl EnclaveConfig {
         &mut self,
         pub_key_hash: &str,
         config: &PoetConfig,
-    ) -> ValidatorRegistrySignupInfo {
+    ) -> SignUpInfo {
         // Update SigRL before getting quote
         self.update_sig_rl();
         let mut eid: r_sgx_enclave_id_t = self.enclave_id;
@@ -173,11 +174,11 @@ impl EnclaveConfig {
 
         let (poet_public_key, quote) = self.get_signup_parameters();
         let nonce = &sha512_from_str(poet_public_key.as_str())[..MAXIMUM_NONCE_LENGTH];
-        let mut proof_data_string = String::new();
         // TODO: Using poet_public_key as a random string for each registration request, this has
         // to be replaced by anti_sybil_id from AVR. Waiting for mock client for simulator be
         // ready.
         let mut epid_pseudonym = poet_public_key.clone();
+        let mut proof_data_struct = SignUpInfoProof::new();
         if !self.check_if_sgx_simulator() {
             let raw_response = self
                 .ias_client
@@ -193,18 +194,13 @@ impl EnclaveConfig {
                 .to_str()
                 .expect("Error reading IAS signature header value as string")
                 .to_string();
-            let proof_data_struct = SignupInfoProofData {
-                verification_report,
-                signature,
-            };
+            proof_data_struct.set_verification_report(verification_report);
+            proof_data_struct.set_signature(signature);
 
             // Verify AVR
             check_verification_report(&proof_data_struct, config)
                 .expect("Invalid attestation report");
             debug!("Verification successful!");
-
-            proof_data_string = serde_json::to_string(&proof_data_struct)
-                .expect("Error serializing structure to string");
 
             // Fill up signup information from AVR
             let verification_report_tmp_dict: Value =
@@ -220,12 +216,12 @@ impl EnclaveConfig {
                 .expect("Error reading EPID pseudonym as string")
                 .to_string();
         }
-        ValidatorRegistrySignupInfo::new(
-            poet_public_key,
-            proof_data_string,
-            epid_pseudonym,
-            nonce.to_string(),
-        )
+        let mut signupinfo_ret = SignUpInfo::new();
+        signupinfo_ret.set_poet_public_key(poet_public_key.to_string());
+        signupinfo_ret.set_proof_data(proof_data_struct);
+        signupinfo_ret.set_anti_sybil_id(epid_pseudonym);
+        signupinfo_ret.set_nonce(nonce.to_string());
+        signupinfo_ret
     }
 
     pub fn initialize_wait_certificate(
@@ -235,6 +231,7 @@ impl EnclaveConfig {
         in_validator_id: &str,
         in_poet_pub_key: &str,
     ) -> u64 {
+        //DONE
         // duration
         let mut duration: u64 = 0_u64;
         let mut eid: r_sgx_enclave_id_t = eid;
@@ -368,7 +365,7 @@ impl EnclaveConfig {
 /// along with other checks for presence of id, epid pseudonym, revocation reason, ISV enclave
 /// quote, nonce.
 fn check_verification_report(
-    proof_data: &SignupInfoProofData,
+    proof_data: &SignUpInfoProof,
     config: &PoetConfig,
 ) -> Result<(), ()> {
     let verification_report = &proof_data.verification_report;

@@ -24,7 +24,6 @@ extern crate log4rs;
 extern crate protobuf;
 extern crate sawtooth_sdk;
 extern crate serde;
-#[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 
@@ -34,14 +33,12 @@ use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use sawtooth_sdk::processor::TransactionProcessor;
 use std::process;
-use validator_registry_tp::ValidatorRegistryTransactionHandler;
+use validator_registry_tp_handler::ValidatorRegistryTransactionHandler;
 
-pub mod validator_registry_payload;
-pub mod validator_registry_signup_info;
-pub mod validator_registry_tp;
-mod validator_registry_tp_verifier;
-pub mod validator_registry_validator_info;
-pub mod validator_registry_validator_map;
+mod protos;
+
+pub mod validator_registry_tp_handler;
+pub mod validator_registry_tp_verifier;
 
 fn main() {
     let matches = clap_app!(validator_registry_tp =>

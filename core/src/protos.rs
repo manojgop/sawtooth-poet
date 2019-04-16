@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Intel Corporation.
+ * Copyright 2019 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,18 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * -----------------------------------------------------------------------------
+ * ------------------------------------------------------------------------------
  */
 
-use sawtooth_sdk::processor::handler::TransactionContext;
-use validator_registry_payload::ValidatorRegistryPayload;
-use validator_registry_tp::ValueError;
-
-pub fn verify_signup_info(
-    _context: &mut TransactionContext,
-    _originator_public_key_hash: &str,
-    _val_reg_payload: &ValidatorRegistryPayload,
-) -> Result<(), ValueError> {
-    // In simulator mode, always return success.
-    Ok(())
-}
+include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));

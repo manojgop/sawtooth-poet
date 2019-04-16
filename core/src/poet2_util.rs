@@ -133,6 +133,15 @@ pub fn sha512_from_str(input_value: &str) -> String {
     sha512_calculator.result_str()
 }
 
+
+/// Returns SHA512 of input u8 slice 
+pub fn sha512_from_slice(input_value: &[u8]) -> String {
+    let mut sha512_calculator = Sha512::new();
+    sha512_calculator.input(input_value);
+    sha512_calculator.result_str()
+}
+
+
 /// Function to verify signature of a message, accepts message, signature and public key as input
 /// Checks if message digest is signed using private key associated with the public key supplied
 /// as input.

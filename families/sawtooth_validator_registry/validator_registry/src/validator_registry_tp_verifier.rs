@@ -24,14 +24,13 @@ use self::openssl::{
     sign::Verifier,
 };
 use crypto::{digest::Digest, sha2::Sha256};
-use protobuf;
+use protos::validator_registry::{SignUpInfo, SignUpInfoProof, ValidatorRegistryPayload};
 use sawtooth_sdk::{
     messages::setting::Setting,
     processor::handler::{ApplyError, TransactionContext},
 };
-use validator_registry_payload::ValidatorRegistryPayload;
-use validator_registry_signup_info::{SignupInfoProofData, ValidatorRegistrySignupInfo};
-use validator_registry_tp::ValueError;
+
+use validator_registry_tp_handler::{get_state, parse_from};
 
 const _CONFIG_ADDRESS_PART_SIZE: usize = 16;
 const _CONFIG_NAMESPACE: &str = "000000";
@@ -39,23 +38,15 @@ const _CONFIG_MAX_KEY_PARTS: usize = 4;
 
 pub fn verify_signup_info(
     context: &mut TransactionContext,
-    originator_public_key_hash: &String,
+    originator_public_key_hash: &str,
     val_reg_payload: &ValidatorRegistryPayload,
-) -> Result<(), ValueError> {
-    let signup_info: ValidatorRegistrySignupInfo =
-        serde_json::from_str(&val_reg_payload.signup_info_str)
-            .expect("Error reading Validator Registry Sign-up info from string");
-    let proof_data: SignupInfoProofData =
-        match serde_json::from_str(signup_info.proof_data.as_str()) {
-            Ok(proof_data_is_present) => proof_data_is_present,
-            Err(error) => {
-                error!("{}", error);
-                return Err(ValueError);
-            }
-        };
+) -> Result<(), ApplyError> {
+    let signup_info: SignUpInfo = val_reg_payload.get_signup_info().clone();
+    let proof_data: SignUpInfoProof = signup_info.get_proof_data().clone();
+
     // Verify the attestation verification report signature
-    let verification_report = proof_data.verification_report;
-    let signature = &proof_data.signature;
+    let verification_report = proof_data.get_verification_report();
+    let signature = &proof_data.get_signature();
 
     // Try to get the report key from the configuration setting.  If it
     // is not there or we cannot parse it, fail verification.
@@ -63,17 +54,6 @@ pub fn verify_signup_info(
         get_config_setting(context, &"sawtooth.poet.report_public_key_pem".to_string())
             .expect("Error reading config setting: PoET public key");
 
-    // TODO: Need below 2 parameters for quote verification
-    /*
-    let valid_measurements = self._get_config_setting(
-        context,
-        &"sawtooth.poet.valid_enclave_measurements".to_string())
-        .expect("Error reading config setting: Enclave measurements");
-    let valid_basenames = self._get_config_setting(
-        context,
-        &"sawtooth.poet.valid_enclave_basenames".to_string())
-        .expect("Error reading config setting: Enclave basename");
-    */
     let public_key = PKey::public_key_from_pem(
         report_public_key_pem
             .expect("Error reading public key information from on-chain setting")
@@ -83,12 +63,14 @@ pub fn verify_signup_info(
     let decoded_sig = base64::decode(signature).unwrap();
     if !verify_message_signature(&public_key, verification_report.as_bytes(), &decoded_sig) {
         error!("Verification report signature does not match");
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "Verification report signature does not match".to_string(),
+        ));
     }
 
     // Convert verification_report json into HashMap
     let verification_report_tmp_value: serde_json::Value =
-        serde_json::from_str(verification_report.as_str())
+        serde_json::from_str(verification_report)
             .expect("Error reading verification report as Json");
     let verification_report_dict = verification_report_tmp_value
         .as_object()
@@ -97,12 +79,16 @@ pub fn verify_signup_info(
     // Includes an ID field.
     if !verification_report_dict.contains_key("id") {
         error!("Verification report does not contain id field");
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "Verification report does not contain id field".to_string(),
+        ));
     }
     // Includes an EPID psuedonym.
     if !verification_report_dict.contains_key("epidPseudonym") {
         error!("Verification report does not contain an EPID psuedonym");
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "Verification report does not contain an EPID psuedonym".to_string(),
+        ));
     }
     // Verify that the verification report EPID pseudonym matches the anti-sybil ID
     let epid_pseudonym = verification_report_dict
@@ -116,12 +102,18 @@ pub fn verify_signup_info(
              contained in the signup information {}",
             epid_pseudonym, signup_info.anti_sybil_id
         );
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "The anti-sybil ID in the verification report does not match in \
+             the signup information"
+                .to_string(),
+        ));
     }
     // Includes an enclave quote.
     if !verification_report_dict.contains_key("isvEnclaveQuoteBody") {
         error!("Verification report does not contain enclave quote body");
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "Verification report does not contain enclave quote body".to_string(),
+        ));
     }
     // The ISV enclave quote body is base 64 encoded
     let _enclave_quote = verification_report_dict
@@ -148,7 +140,9 @@ pub fn verify_signup_info(
             "AVR nonce {} does not match signup info nonce {}",
             nonce, signup_info.nonce
         );
-        return Err(ValueError);
+        return Err(ApplyError::InternalError(
+            "AVR nonce doesn't match signup info nonce".to_string(),
+        ));
     }
     Ok(())
 }
@@ -169,55 +163,32 @@ fn verify_message_signature(pub_key: &PKey<Public>, message: &[u8], signature: &
 
 fn get_config_setting(
     context: &mut TransactionContext,
-    key: &String,
+    key: &str,
 ) -> Result<Option<String>, ApplyError> {
     let config_key_address = config_key_to_address(&key);
-    let setting_data = get_setting_data(context, &config_key_address);
+    let setting_data = get_state(context, &config_key_address);
 
     match setting_data {
         Err(err) => Err(err),
         Ok(entries) => {
-            let setting: Setting = unpack_data(&entries.expect("Error reading entries"))?;
-            for entry in setting.get_entries().iter() {
-                if entry.get_key() == key {
-                    return Ok(Some(entry.get_value().to_string()));
+            if entries.is_some() {
+                let raw_entries = entries.unwrap();
+                let setting: Setting = parse_from(&raw_entries)?;
+                for entry in setting.get_entries().iter() {
+                    if entry.get_key() == key {
+                        return Ok(Some(entry.get_value().to_string()));
+                    }
                 }
-            }
+            } 
             Ok(None)
         }
     }
 }
 
-fn get_setting_data(
-    context: &mut TransactionContext,
-    address: &str,
-) -> Result<Option<Vec<u8>>, ApplyError> {
-    context.get_state(vec![address.to_string()]).map_err(|err| {
-        warn!("Internal Error: Failed to load state: {:?}", err);
-        ApplyError::InternalError(format!("Failed to load state: {:?}", err))
-    })
-}
-
-fn unpack_data<T>(data: &[u8]) -> Result<T, ApplyError>
-where
-    T: protobuf::Message,
-{
-    protobuf::parse_from_bytes(&data).map_err(|err| {
-        warn!(
-            "Invalid error: Failed to unmarshal SettingsTransaction: {:?}",
-            err
-        );
-        ApplyError::InternalError(format!(
-            "Failed to unmarshal SettingsTransaction: {:?}",
-            err
-        ))
-    })
-}
-
-fn config_key_to_address(key: &String) -> String {
+fn config_key_to_address(key: &str) -> String {
     let _config_address_padding = config_short_hash(String::new());
 
-    let key_parts: Vec<&str> = key.split(".").collect();
+    let key_parts: Vec<&str> = key.split('.').collect();
     if key_parts.len() != (_CONFIG_MAX_KEY_PARTS - 1) {
         panic!("Failed to get key parts");
     }

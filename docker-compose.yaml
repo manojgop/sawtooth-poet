@@ -129,15 +129,15 @@ services:
     image: sawtooth-poet-validator-registry-tp:latest
     build:
       context: ./
-      dockerfile: validator-registry-tp/Dockerfile
+      dockerfile: ./families/Dockerfile
       args:
         - http_proxy
         - https_proxy
         - no_proxy
     volumes:
-      - ./validator-registry-tp:/project/validator-registry-tp/
+      - ./families/sawtooth_validator_registry:/project
       - cargo-registry-tp:/root/.cargo/registry
-    working_dir: '/project/validator-registry-tp'
+    working_dir: '/project/validator_registry'
     environment:
       - 'http_proxy=${http_proxy}'
       - 'https_proxy=${https_proxy}'

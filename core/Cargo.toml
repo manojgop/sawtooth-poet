@@ -1,4 +1,4 @@
-# Copyright 2018 Intel Corporation
+# Copyright 2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,14 +17,15 @@
 name = "sawtooth-poet"
 version = "0.1.0"
 authors = ["Intel Corporation"]
+build = "build.rs"
 description = "PoET2 consensus algorithm for Sawtooth"
 
 [dependencies]
-sawtooth-sdk = { git = "https://github.com/hyperledger/sawtooth-sdk-rust" }
+sawtooth-sdk  = "0.2"
 rand = "0.4.2"
 log = "0.4.5"
 log4rs = "0.8.1"
-protobuf="2.0"
+protobuf= "2.0"
 sawtooth-zmq = "0.8.2-dev5"
 num = "0.1.42"
 lazy_static = "1.0.2"
@@ -38,7 +39,6 @@ bincode = "1.0.1"
 common = { path = "../common" }
 ias_client = { path = "../ias_client" }
 rust_sgxffi = { path = "../sgx/rust_sgxffi"}
-validator-registry-tp = { path = "../validator-registry-tp" }
 hyper = "0.12.11"
 tokio-core = "0.1.17"
 toml = "0.4.8"
@@ -46,9 +46,15 @@ openssl = "0.10.15"
 base64 = "0.10.0"
 hex = "0.3.2"
 
+[build-dependencies]
+protoc-rust = "2.0"
+glob = "0.2"
+cfg-if = "0.1"
+
 [package.metadata.deb]
 maintainer = "sawtooth"
 depends = "$auto,rsyslog"
+copyright = "Copyright 2019 Intel Corporation"
 assets = [
     ["../packaging/systemd/sawtooth-poet.service", "/lib/systemd/system/sawtooth-poet.service", "644"],
     ["../packaging/systemd/sawtooth-poet", "/etc/default/sawtooth-poet", "644"],

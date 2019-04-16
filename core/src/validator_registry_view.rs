@@ -19,7 +19,7 @@ use crypto::{digest::Digest, sha2::Sha256};
 use sawtooth_sdk::consensus::engine::BlockId;
 use service::Poet2Service;
 use std::{error, fmt};
-use validator_registry_tp::validator_registry_validator_info::ValidatorRegistryValidatorInfo;
+use protos::validator_registry::ValidatorInfo;
 
 #[derive(Debug, Clone)]
 pub struct VRVStateError;
@@ -52,7 +52,7 @@ pub fn get_validator_info_for_validator_id(
     validator_id: &str,
     block_id: &BlockId,
     service: &mut Poet2Service,
-) -> Result<ValidatorRegistryValidatorInfo, VRVStateError> {
+) -> Result<ValidatorInfo, VRVStateError> {
     let validator_id_addr = _to_address(validator_id);
     info!("{}", validator_id_addr.clone());
     let state_data = service
@@ -61,13 +61,16 @@ pub fn get_validator_info_for_validator_id(
     let raw_value = state_data.get(&validator_id_addr);
     info!("State data while reading {:?}", state_data);
     if raw_value.is_some() {
-        let parsed: Result<String, _> = String::from_utf8(raw_value.unwrap().to_vec());
-        if parsed.is_ok() {
-            let validator_info: ValidatorRegistryValidatorInfo =
-                serde_json::from_str(&parsed.unwrap())
-                    .expect("Error converting string to Validator Info struct");
-            return Ok(validator_info);
-        }
+        let data = raw_value.unwrap();
+        let validator_info: ValidatorInfo = protobuf::parse_from_bytes(&data).map_err(|err| {
+            warn!(
+                "Invalid error: Failed to parse ValidatorInfo: {:?}",
+                err
+            );
+            VRVStateError
+        })?;
+
+        return Ok(validator_info);
     }
     Err(VRVStateError)
 }
@@ -81,7 +84,7 @@ pub fn get_poet_pubkey_for_validator_id(
         get_validator_info_for_validator_id(validator_id, &block_id.to_owned(), service);
     if validator_info.is_ok() {
         let validator_info_parsed = validator_info.unwrap();
-        return Ok(validator_info_parsed.signup_info.poet_public_key);
+        return Ok(validator_info_parsed.get_signup_info().get_poet_public_key().to_string());
     }
     Err(VRVStateError)
 }
